@@ -7,13 +7,16 @@ from .library import list_component_library, install_library, fetch_library, sav
 from .compiler import compile
 import json
 
-def init_xircuits():
+def init_xircuits(add_missing_files=False):
     package_name = 'xircuits'
-    copy_from_installed_wheel(package_name, resource='.xircuits', dest_path='.xircuits')
+    copy_from_installed_wheel(package_name, resource='.xircuits', dest_path='.xircuits', add_missing_files=add_missing_files)
+
     component_library_path = Path(os.getcwd()) / "xai_components"
-    if not component_library_path.exists():
-        copy_from_installed_wheel('xai_components', '', 'xai_components')
-        
+
+    # Run copy_from_installed_wheel for 'xai_components' if the path doesn't exist or if add_missing_files is True
+    if not component_library_path.exists() or add_missing_files:
+        copy_from_installed_wheel('xai_components', '', 'xai_components', add_missing_files=True)
+ 
 def cmd_start_xircuits(args, extra_args=[]):
     # fetch xai_components
     component_library_path = Path(os.getcwd()) / "xai_components"
@@ -53,11 +56,16 @@ def cmd_compile(args, extra_args=[]):
 def cmd_list_libraries(args, extra_args=[]):
     list_component_library()
 
+def cmd_init_xircuits(args, unknown_args=None):
+    print("Initializing Xircuits...")
+    init_xircuits(add_missing_files=True)
+    print("Initialization completed.")
+
 def main():
     parser = argparse.ArgumentParser(description='Xircuits Command Line Interface', add_help=False)
     subparsers = parser.add_subparsers(dest="command")
 
-# Adding parser for 'start' command
+    # Adding parser for 'start' command
     start_parser = subparsers.add_parser('start', help='Start Xircuits.')
     # Add an arbitrary list of arguments. The nargs="*" means 0 or more arguments.
     # This will collect all additional arguments into a list.
@@ -92,6 +100,9 @@ def main():
     list_parser = subparsers.add_parser('list', help='List available component libraries for Xircuits.')
     list_parser.set_defaults(func=cmd_list_libraries)
 
+    # Adding parser for 'init' command
+    init_parser = subparsers.add_parser('init', help='Initialize Xircuits with necessary components without overwriting existing ones.')
+    init_parser.set_defaults(func=cmd_init_xircuits)
 
     args, unknown_args = parser.parse_known_args()
 
