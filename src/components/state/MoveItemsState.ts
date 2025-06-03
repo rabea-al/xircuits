@@ -12,6 +12,8 @@ import {
   State
 } from '@projectstorm/react-canvas-core';
 import { Point } from '@projectstorm/geometry';
+import { LinkSplitManager } from '../link/LinkSplitManager';
+import { SplitLinkCommand } from '../../commands/SplitLinkCommand';
 
 export class MoveItemsState<E extends CanvasEngine = CanvasEngine> extends AbstractDisplacementState<E> {
   initialPositions: {
@@ -52,6 +54,11 @@ export class MoveItemsState<E extends CanvasEngine = CanvasEngine> extends Abstr
             this.engine.getModel().clearSelection();
           }
           element.setSelected(true);
+          // داخل fireMouseMoved قبل setHover
+          const mouseEv = event.event as MouseEvent;
+          const linkId = LinkSplitManager.detectLinkUnderPointer(mouseEv.clientX, mouseEv.clientY);
+          LinkSplitManager.setHover(linkId);
+
           this.engine.repaintCanvas();
           this.initialPosition = element['position'];
           this.finalPosition = element['position'];
@@ -60,20 +67,38 @@ export class MoveItemsState<E extends CanvasEngine = CanvasEngine> extends Abstr
     );
 
     this.registerAction(
-      new Action({
-        type: InputType.MOUSE_UP,
-        fire: () => {
-          // When node in the same position, just return
-          if (
-            this.initialPosition?.x === this.finalPosition?.x &&
-            this.initialPosition?.y === this.finalPosition?.y
-          ) {
-            return;
-          }
-          this.fireEvent();
-        }
-      })
-    );
+  new Action({
+    type: InputType.MOUSE_UP,
+    fire: (event) => {
+      const mouseEv = event.event as MouseEvent;
+      const linkId = LinkSplitManager.getHoveredLinkId();
+
+      const items = this.engine.getModel().getSelectedEntities();
+      const draggedNode = items.find(item => item instanceof BasePositionModel) as BasePositionModel | undefined;
+
+      if (linkId && draggedNode) {
+        const point = this.engine.getRelativeMousePoint(mouseEv);
+        new SplitLinkCommand(
+          (this.engine as any).model, 
+          draggedNode,
+          linkId,
+          point
+        ).execute();
+      }
+
+      LinkSplitManager.clearHover();
+
+      if (
+        this.initialPosition?.x === this.finalPosition?.x &&
+        this.initialPosition?.y === this.finalPosition?.y
+      ) {
+        return;
+      }
+      this.fireEvent();
+    }
+  })
+);
+
   }
 
   fireEvent = () => {
@@ -86,6 +111,14 @@ export class MoveItemsState<E extends CanvasEngine = CanvasEngine> extends Abstr
   }
 
   fireMouseMoved(event: AbstractDisplacementStateEvent) {
+    console.debug('[MoveItemsState] fireMouseMoved');
+    const mouseEv = event.event as MouseEvent;
+
+    const linkId = LinkSplitManager.detectLinkUnderPointer(mouseEv.clientX, mouseEv.clientY);
+    console.debug('[LinkSplit] detected linkId ->', linkId);
+
+    LinkSplitManager.setHover(linkId);
+
     const items = this.engine.getModel().getSelectedEntities();
     const model = this.engine.getModel();
     for (const item of items) {
