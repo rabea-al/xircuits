@@ -54,7 +54,6 @@ export class MoveItemsState<E extends CanvasEngine = CanvasEngine> extends Abstr
             this.engine.getModel().clearSelection();
           }
           element.setSelected(true);
-          // داخل fireMouseMoved قبل setHover
           const mouseEv = event.event as MouseEvent;
           const linkId = LinkSplitManager.detectLinkUnderPointer(mouseEv.clientX, mouseEv.clientY);
           LinkSplitManager.setHover(linkId);
