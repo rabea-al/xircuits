@@ -16,7 +16,6 @@ export class LinkSplitManager {
 static setHover(linkId: string | null): void {
   if (linkId === this.hoveredLinkId) return;
   this.clearHover();                            
-  console.log('hover', linkId);
   if (linkId) {
     const g = document.querySelector(
       `g[data-linkid="${linkId}"]`
