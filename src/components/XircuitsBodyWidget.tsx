@@ -237,13 +237,14 @@ export const BodyWidget: FC<BodyWidgetProps> = ({
 	const [componentList, setComponentList] = useState([]);
 	const [isLoading, setIsLoading] = useState(false);
 	const [loadingMessage, setLoadingMessage] = useState('Xircuits loading...');
-
+	const [inDebugMode, setInDebugMode] = useState<boolean>(false);
+	const [currentIndex, setCurrentIndex] = useState<number>(-1);
 	const [runType, setRunType] = useState<string>("run");
 	const [prevRemoteConfiguration, setPrevRemoteConfiguration] = useState(null);
 	const [remoteRunTypesCfg, setRemoteRunTypesCfg] = useState<string>("");
 	const initialRender = useRef(true);
 	const contextRef = useRef(context);
-    const skipSerializationRef = useRef(false);
+	const notInitialRender = useRef(false);
 	const [showZoom, setShowZoom] = useState(true);
 	const hideTimeout = useRef<ReturnType<typeof setTimeout>>();
 	const [isHoveringControls, setIsHoveringControls] = useState(false);
@@ -426,24 +427,21 @@ export const BodyWidget: FC<BodyWidgetProps> = ({
 		zoomOut(xircuitsApp.getDiagramEngine());
 		}, [xircuitsApp]);
 	
-	const serializeModel = useCallback(() => {
-		if (contextRef.current.isReady) {
-			// console.log("Serializing model..."); 
-			let currentModel = xircuitsApp.getDiagramEngine().getModel().serialize();
-			contextRef.current.model.fromString(
-				JSON.stringify(currentModel, null, 4)
-			);
-			setSaved(false);
-		}
-	}, []);
+	const onChange = useCallback(
+		(): void => {
+			if (contextRef.current.isReady) {
+				let currentModel = xircuitsApp.getDiagramEngine().getModel().serialize();
+				contextRef.current.model.fromString(
+					JSON.stringify(currentModel, null, 4)
+				);
+				setSaved(false);
+			}
+		}, []);
 
-	const onChange = useCallback((): void => {
-		if (skipSerializationRef.current) {
-			return;
-		}
-		serializeModel();
-	}, [serializeModel]);
-
+	function replacer(key, value) {
+		if (key == "x" || key == "y") return Math.round((value + Number.EPSILON) * 1000) / 1000;
+		return value;
+	}
 
 	useEffect(() => {
 		const currentContext = contextRef.current;
@@ -852,7 +850,7 @@ export const BodyWidget: FC<BodyWidgetProps> = ({
 			return;
 		}
 		checkAllCompulsoryInPortsConnected();  
-		onChange();
+		onChange()
 		setInitialize(true);
 		setSaved(true);
 		await commands.execute(commandIDs.saveDocManager);
@@ -1007,28 +1005,18 @@ export const BodyWidget: FC<BodyWidgetProps> = ({
 
 	const handleReloadAll = async () => {
 		if (shell.currentWidget?.id !== widgetId) {
-			return;
+		  return;
 		}
 
-		skipSerializationRef.current = true;
-		try {
-			await app.commands.execute(commandIDs.refreshComponentList);
-			let allNodes = xircuitsApp.getDiagramEngine().getModel().getNodes();
-			allNodes.forEach(node => node.setSelected(true));
-			const reloadPromise = app.commands.execute(commandIDs.reloadNode);
-
-			await triggerLoadingAnimation(reloadPromise, { loadingMessage: 'Reloading all nodes...' });
-			clearSearchFlags();
-		} finally {
-			// Wait 100ms before clearing the flag.
-			// This gives the 10ms-delayed onChange calls time to fire and see the flag is true.
-			setTimeout(() => {
-				skipSerializationRef.current = false;
-			}, 100);
-			// Manually serialize it at the end. 
-			await serializeModel();
-			console.log("Reload all complete.");
-		}
+		await app.commands.execute(commandIDs.refreshComponentList);
+		let allNodes = xircuitsApp.getDiagramEngine().getModel().getNodes();
+		allNodes.forEach(node => node.setSelected(true));
+		const reloadPromise = app.commands.execute(commandIDs.reloadNode);
+	
+		// Trigger loading animation
+		await triggerLoadingAnimation(reloadPromise, { loadingMessage: 'Reloading all nodes...'});
+		clearSearchFlags();
+		console.log("Reload all complete.");
 	};
 
 	const handleToggleAllLinkAnimation = () => {
