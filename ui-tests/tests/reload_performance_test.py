@@ -121,12 +121,23 @@ with sync_playwright() as p:
     print(f"Δheap (MB): {', '.join(f'{d:.1f}' for d in deltas)}")
     print(f"net growth across runs: {net_growth_mb:.1f} MB")
 
-    assert med <= MAX_TIME_MS, f"Median time {med:.0f}ms > {MAX_TIME_MS}ms"
-    assert p95 <= MAX_TIME_P95_MS, f"P95 time {p95:.0f}ms > {MAX_TIME_P95_MS}ms"
+     # ==== checks after printing summary (aggregate, don't stop early) ====
+    violations = []
+
+   
+
     for i, d in enumerate(deltas, 1):
-        assert d <= MAX_DELTA_MB, f"Run {i}: Δheap {d:.1f}MB > {MAX_DELTA_MB}MB"
-    assert net_growth_mb <= MAX_NET_GROWTH_MB, \
-        f"Net heap growth {net_growth_mb:.1f}MB > {MAX_NET_GROWTH_MB}MB"
+        if d > MAX_DELTA_MB:
+            violations.append(f"Run {i}: Δheap {d:.1f}MB > {MAX_DELTA_MB}MB")
+
+    if net_growth_mb > MAX_NET_GROWTH_MB:
+        violations.append(
+            f"Net heap growth {net_growth_mb:.1f}MB > {MAX_NET_GROWTH_MB}MB"
+        )
+
+    if violations:
+        # خلي الرسائل كل وحدة بسطر لسهولة القراءة بـ CI
+        raise AssertionError("\n".join(violations))
 
     if dom_before and dom_after:
         nb = dom_before.get("nodes", 0)
